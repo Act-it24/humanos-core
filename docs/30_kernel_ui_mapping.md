@@ -71,24 +71,39 @@ web/src/features/
 ### 1. Self OS
 
 **Blueprint:** `docs/20_self_os_blueprint.md`  
+**Spec:** `docs/25_self_os_onboarding_spec.md`  
 **Component Path:** `web/src/features/self-os/SelfOSPage.jsx`  
-**Current Status:** Placeholder component
+**Current Status:** MVP Implemented (v0.1)
 
-**Planned Components (from blueprint):**
-- `SelfOnboardingWizard` - Guided setup flow for values, traits, energy rhythms
-- `ValuesSelector` - Card-based or slider interface for selecting core values
-- `TraitsSummary` - Human-readable display of personality patterns
-- `FlagsEditor` - Interface for adding/editing support/risk/identity flags
-- `SelfOSProfileView` - Overview of complete Self OS profile
+**Implemented Components (MVP):**
+- `SelfOSWizard` (`SelfOSWizard.jsx`) - Multi-step onboarding wizard with 5-6 screens:
+  - Screen 0: Intro
+  - Screen 1: Core Values selection and ranking
+  - Screen 2: Personality Style (3 dimensions with low/medium/high)
+  - Screen 3: Energy Rhythms (chronotype and social energy)
+  - Screen 4: Life Context & Flags (checkboxes)
+  - Screen 5: Summary & Confirmation
+- `SelfOSPage` - Main page component that:
+  - Shows empty state with CTA if no profile exists
+  - Displays profile summary when profile exists (values, traits, energy, flags)
+  - Allows re-opening wizard to review/update profile
+- `selfOsModel.js` - Data model, helper functions, and predefined option lists
+
+**Current Implementation Details:**
+- Frontend-only MVP (no backend/persistence yet)
+- Profile stored in React state (useState)
+- Wizard can be opened inline within SelfOSPage
+- Profile summary view shows top values, traits, energy rhythms, and active flags
+- Follows spec from `docs/25_self_os_onboarding_spec.md`
 
 **Routes (future):**
 - `/self` - Main Self OS overview
-- `/self/onboarding` - First-time setup wizard
-- `/self/profile` - Profile review and editing
+- `/self/onboarding` - First-time setup wizard (currently inline)
+- `/self/profile` - Profile review and editing (currently inline)
 
 **Data Dependencies:**
-- Self OS profile (values, traits, flags, life events)
-- Links to Life Map for goal alignment checks
+- Self OS profile (values, traits, flags, energy rhythms)
+- Links to Life Map for goal alignment checks (future)
 
 ---
 
