@@ -5,13 +5,13 @@ export default function SelfOSPage() {
     <section
       style={{
         padding: "2rem",
-        background: "#050816",
+        background: "#020617",
         color: "#ffffff",
         borderRadius: "1.5rem",
         maxWidth: "720px",
         margin: "2rem auto",
-        boxShadow: "0 18px 45px rgba(0,0,0,0.6)",
-        border: "1px solid rgba(255,255,255,0.06)",
+        boxShadow: "0 18px 40px rgba(15,23,42,0.9)",
+        border: "1px solid rgba(148,163,184,0.25)",
       }}
     >
       <h2
