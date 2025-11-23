@@ -1,71 +1,354 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Card, Button, Section } from "../../components";
 import {
-  createEmptySelfOsProfile,
-  PREDEFINED_VALUES,
-  PREDEFINED_TRAITS,
+  VALUE_OPTIONS,
+  PERSONALITY_DIMENSIONS,
   CHRONOTYPE_OPTIONS,
-  SOCIAL_ENERGY_OPTIONS,
-  PREDEFINED_FLAGS,
-  buildProfileFromFormData,
+  DEFAULT_SOCIAL_ENERGY_LABELS,
+  LIFE_FLAG_OPTIONS,
+  MAX_SELECTED_VALUES,
+  MIN_CORE_VALUES,
+  MAX_CORE_VALUES,
+  calculatePercents,
+  buildValuesFromSelections,
+  buildPersonalityFromScores,
+  createEnergyProfile,
+  normalizeFocusWindows,
+  buildFlagsFromKeys,
+  buildProfileFromWizardData,
+  profileToWizardState,
 } from "./selfOsModel";
 
+const MAX_FOCUS_WINDOWS = 3;
+const WIZARD_STEP_COUNT = 6;
+
+function ProgressLabel({ step }) {
+  if (step === 0) return null;
+  return (
+    <div
+      style={{
+        color: "#94a3b8",
+        fontSize: "0.85rem",
+        marginBottom: "0.4rem",
+      }}
+    >
+      Step {step} of {WIZARD_STEP_COUNT}
+    </div>
+  );
+}
+
+function HelperText({ children }) {
+  return (
+    <p
+      style={{
+        fontSize: "0.95rem",
+        color: "#94a3b8",
+        marginBottom: "1rem",
+      }}
+    >
+      {children}
+    </p>
+  );
+}
+
 /**
- * Self OS Onboarding Wizard
- * 
- * Multi-step wizard for creating/editing a Self OS profile.
- * Based on docs/25_self_os_onboarding_spec.md
- * 
+ * Self OS Onboarding Wizard (v0.2)
+ *
  * @param {Object} props
- * @param {Object|null} props.initialProfile - Existing profile to edit (optional)
- * @param {Function} props.onCancel - Callback when user cancels/skips
- * @param {Function} props.onComplete - Callback when user completes with profile
+ * @param {Object|null} props.initialProfile
+ * @param {Function} props.onCancel
+ * @param {Function} props.onComplete
  */
 export default function SelfOSWizard({ initialProfile = null, onCancel, onComplete }) {
   const [step, setStep] = useState(0);
-  const [formData, setFormData] = useState(() => {
-    if (initialProfile) {
-      return {
-        createdAt: initialProfile.createdAt,
-        values: [...initialProfile.values],
-        traits: [...initialProfile.traits],
-        energy: [...initialProfile.energy],
-        flags: [...initialProfile.flags],
-        notes: initialProfile.notes || "",
-      };
+  const [formData, setFormData] = useState(() => profileToWizardState(initialProfile));
+  const [valueMessage, setValueMessage] = useState("");
+  const [coreMessage, setCoreMessage] = useState("");
+  const [focusMessage, setFocusMessage] = useState("");
+
+  useEffect(() => {
+    setFormData(profileToWizardState(initialProfile));
+    setValueMessage("");
+    setCoreMessage("");
+    setFocusMessage("");
+    setStep(0);
+  }, [initialProfile]);
+
+  const valueLookup = useMemo(() => {
+    const map = VALUE_OPTIONS.reduce((acc, val) => {
+      acc[val.key] = val;
+      return acc;
+    }, {});
+    if (initialProfile?.values) {
+      initialProfile.values.forEach((val) => {
+        if (!map[val.key]) {
+          map[val.key] = { key: val.key, label: val.label || val.key, description: val.description };
+        }
+      });
     }
-    return {
-      values: [],
-      traits: [],
-      energy: [],
-      flags: [],
-      notes: "",
-    };
+    return map;
+  }, [initialProfile]);
+
+  const flagLabelLookup = useMemo(() => {
+    const map = Object.values(LIFE_FLAG_OPTIONS)
+      .flat()
+      .reduce((acc, flag) => {
+        acc[flag.key] = flag;
+        return acc;
+      }, {});
+    if (initialProfile?.flags) {
+      initialProfile.flags.forEach((flag) => {
+        if (!map[flag.key]) {
+          map[flag.key] = { key: flag.key, label: flag.label || flag.key, type: flag.type || "other" };
+        }
+      });
+    }
+    return map;
+  }, [initialProfile]);
+
+  const selectedValueKeys = formData.selectedValueKeys || [];
+  const coreValueKeys = formData.coreValueKeys || [];
+  const coreRanks = formData.coreRanks || {};
+  const personalityScores = formData.personalityScores || {};
+  const focusWindows = formData.focusWindows || [];
+  const selectedFlagKeys = formData.selectedFlagKeys || [];
+  const socialEnergyScore = Number.isFinite(formData.socialEnergyScore) ? formData.socialEnergyScore : 50;
+
+  const selectedValues = selectedValueKeys.map((key) => valueLookup[key] || { key, label: key });
+  const coreValues = coreValueKeys.map((key) => valueLookup[key] || { key, label: key });
+
+  const coreRanksInUse = new Set(Object.values(coreRanks));
+  const canProceedFromValues = selectedValueKeys.length >= MIN_CORE_VALUES;
+  const canProceedFromRanking =
+    coreValueKeys.length >= MIN_CORE_VALUES &&
+    coreValueKeys.length <= MAX_CORE_VALUES &&
+    coreValueKeys.every((key) => Number.isFinite(coreRanks[key])) &&
+    coreRanksInUse.size === coreValueKeys.length;
+
+  const personalityPreview = buildPersonalityFromScores(personalityScores);
+  const energyPreview = createEnergyProfile({
+    chronotype: formData.chronotype || "mixed",
+    focusWindows: normalizeFocusWindows(focusWindows),
+    socialEnergyScore,
   });
+  const flagsPreview = buildFlagsFromKeys(selectedFlagKeys);
 
-  const totalSteps = 6; // 0-5
+  const handleToggleValue = (key) => {
+    if (selectedValueKeys.includes(key)) {
+      const updatedSelection = selectedValueKeys.filter((k) => k !== key);
+      const updatedCores = coreValueKeys.filter((k) => k !== key);
+      const updatedRanks = { ...coreRanks };
+      delete updatedRanks[key];
+      setFormData({
+        ...formData,
+        selectedValueKeys: updatedSelection,
+        coreValueKeys: updatedCores,
+        coreRanks: updatedRanks,
+      });
+      setValueMessage("");
+      setCoreMessage("");
+      return;
+    }
 
-  // Screen 0: Intro
+    if (selectedValueKeys.length >= MAX_SELECTED_VALUES) {
+      setValueMessage(
+        "Try to keep it focused. Choose up to 7 for now - you can always refine this later."
+      );
+      return;
+    }
+
+    setFormData({
+      ...formData,
+      selectedValueKeys: [...selectedValueKeys, key],
+    });
+    setValueMessage("");
+  };
+
+  const handleToggleCore = (key) => {
+    if (coreValueKeys.includes(key)) {
+      const updatedCores = coreValueKeys.filter((k) => k !== key);
+      const updatedRanks = { ...coreRanks };
+      delete updatedRanks[key];
+      setFormData({
+        ...formData,
+        coreValueKeys: updatedCores,
+        coreRanks: updatedRanks,
+      });
+      setCoreMessage("");
+      return;
+    }
+
+    if (coreValueKeys.length >= MAX_CORE_VALUES) {
+      setCoreMessage("Pick up to five core values for now.");
+      return;
+    }
+
+    setFormData({
+      ...formData,
+      coreValueKeys: [...coreValueKeys, key],
+    });
+    setCoreMessage("");
+  };
+
+  const updateCoreRank = (key, rank) => {
+    setFormData({
+      ...formData,
+      coreRanks: {
+        ...coreRanks,
+        [key]: rank,
+      },
+    });
+  };
+
+  const updatePersonalityScore = (key, score) => {
+    setFormData({
+      ...formData,
+      personalityScores: {
+        ...personalityScores,
+        [key]: score,
+      },
+    });
+  };
+
+  const updateFocusWindow = (index, field, value) => {
+    const updated = focusWindows.map((window, idx) =>
+      idx === index ? { ...window, [field]: value } : window
+    );
+    setFormData({ ...formData, focusWindows: updated });
+  };
+
+  const addFocusWindow = () => {
+    if (focusWindows.length >= MAX_FOCUS_WINDOWS) {
+      setFocusMessage("You can add up to 3 focus windows for now.");
+      return;
+    }
+    setFormData({
+      ...formData,
+      focusWindows: [...focusWindows, { label: "", startTime: "", endTime: "" }],
+    });
+    setFocusMessage("");
+  };
+
+  const removeFocusWindow = (index) => {
+    const updated = focusWindows.filter((_, idx) => idx !== index);
+    setFormData({ ...formData, focusWindows: updated });
+  };
+
+  const handleFlagToggle = (key) => {
+    if (selectedFlagKeys.includes(key)) {
+      setFormData({
+        ...formData,
+        selectedFlagKeys: selectedFlagKeys.filter((k) => k !== key),
+      });
+      return;
+    }
+    setFormData({
+      ...formData,
+      selectedFlagKeys: [...selectedFlagKeys, key],
+    });
+  };
+
+  const handleSave = () => {
+    const profile = buildProfileFromWizardData(formData, initialProfile);
+    onComplete(profile);
+  };
+
+  const renderValueButton = (option) => {
+    const isSelected = selectedValueKeys.includes(option.key);
+    return (
+      <button
+        key={option.key}
+        onClick={() => handleToggleValue(option.key)}
+        style={{
+          padding: "0.85rem 1rem",
+          borderRadius: "0.75rem",
+          border: isSelected ? "2px solid rgba(96,165,250,0.9)" : "1px solid rgba(148,163,184,0.35)",
+          background: isSelected ? "rgba(59,130,246,0.14)" : "rgba(15,23,42,0.65)",
+          color: "#e5e7eb",
+          cursor: "pointer",
+          fontSize: "0.92rem",
+          textAlign: "left",
+          transition: "all 0.18s ease",
+        }}
+      >
+        <div style={{ fontWeight: 600 }}>{option.label}</div>
+        {option.description && (
+          <div style={{ fontSize: "0.85rem", color: "#94a3b8", marginTop: "0.35rem" }}>
+            {option.description}
+          </div>
+        )}
+      </button>
+    );
+  };
+
+  const renderFlagGroup = (title, items) => (
+    <div style={{ marginBottom: "1.25rem" }}>
+      <h4
+        style={{
+          fontSize: "1rem",
+          marginBottom: "0.6rem",
+          color: "#e5e7eb",
+        }}
+      >
+        {title}
+      </h4>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+        {items.map((flag) => {
+          const isChecked = selectedFlagKeys.includes(flag.key);
+          return (
+            <label
+              key={flag.key}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.75rem",
+                padding: "0.75rem",
+                background: "rgba(15,23,42,0.6)",
+                borderRadius: "0.6rem",
+                border: "1px solid rgba(148,163,184,0.25)",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={isChecked}
+                onChange={() => handleFlagToggle(flag.key)}
+                style={{ width: "1.1rem", height: "1.1rem", cursor: "pointer" }}
+              />
+              <div>
+                <div style={{ color: "#e5e7eb", fontSize: "0.95rem" }}>{flag.label}</div>
+                {flag.description && (
+                  <div style={{ fontSize: "0.85rem", color: "#94a3b8" }}>{flag.description}</div>
+                )}
+              </div>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  // --- Step screens ---
+
   if (step === 0) {
     return (
       <Card>
-        <Section title="Let's set up your Self OS">
+        <Section title="Let's tune HumanOS to your inner world">
           <p
             style={{
               fontSize: "0.98rem",
               lineHeight: 1.7,
               color: "#e5e7eb",
-              marginBottom: "2rem",
+              marginBottom: "1.5rem",
             }}
           >
-            HumanOS uses your Self OS profile to personalize goals, plans and reflections.
-            <br />
-            <br />
-            You stay in control; you can edit this later.
+            Self OS is your inner profile in HumanOS - your values, patterns, energy rhythms, and life
+            context. This is not a test; there are no right answers. You can edit everything later, and we
+            use it to keep plans and suggestions aligned with who you are.
           </p>
           <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
             <Button variant="primary" onClick={() => setStep(1)}>
-              Start
+              Start Self OS Setup
             </Button>
             <Button variant="secondary" onClick={onCancel}>
               Skip for now
@@ -76,157 +359,41 @@ export default function SelfOSWizard({ initialProfile = null, onCancel, onComple
     );
   }
 
-  // Screen 1: Core Values
   if (step === 1) {
-    const selectedValues = formData.values || [];
-    const maxValues = 5;
-
-    const toggleValue = (valueId) => {
-      const existing = selectedValues.find((v) => v.id === valueId);
-      if (existing) {
-        setFormData({
-          ...formData,
-          values: selectedValues.filter((v) => v.id !== valueId),
-        });
-      } else if (selectedValues.length < maxValues) {
-        const valueDef = PREDEFINED_VALUES.find((v) => v.id === valueId);
-        setFormData({
-          ...formData,
-          values: [
-            ...selectedValues,
-            {
-              id: valueId,
-              label: valueDef.label,
-              rank: selectedValues.length + 1,
-            },
-          ],
-        });
-      }
-    };
-
-    const updateRank = (valueId, newRank) => {
-      const updated = selectedValues.map((v) => {
-        if (v.id === valueId) {
-          return { ...v, rank: newRank };
-        }
-        // Adjust other ranks if needed
-        if (v.rank === newRank && v.id !== valueId) {
-          return { ...v, rank: v.rank + 1 };
-        }
-        return v;
-      });
-      setFormData({ ...formData, values: updated });
-    };
-
     return (
       <Card>
-        <Section title="Core Values">
-          <p
-            style={{
-              fontSize: "0.95rem",
-              color: "#94a3b8",
-              marginBottom: "1.5rem",
-            }}
-          >
-            Which of these feel most important to you right now? (Select up to {maxValues})
-          </p>
+        <ProgressLabel step={step} />
+        <Section title="Values - Selection">
+          <HelperText>Pick up to 7 values that feel important to you right now.</HelperText>
+          {valueMessage && (
+            <div style={{ color: "#f87171", fontSize: "0.9rem", marginBottom: "0.5rem" }}>
+              {valueMessage}
+            </div>
+          )}
 
           <div
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-              gap: "0.75rem",
-              marginBottom: "2rem",
+              gap: "0.85rem",
+              marginBottom: "1.5rem",
             }}
           >
-            {PREDEFINED_VALUES.map((value) => {
-              const isSelected = selectedValues.some((v) => v.id === value.id);
-              return (
-                <button
-                  key={value.id}
-                  onClick={() => toggleValue(value.id)}
-                  style={{
-                    padding: "0.75rem 1rem",
-                    borderRadius: "0.5rem",
-                    border: isSelected
-                      ? "2px solid rgba(96,165,250,0.9)"
-                      : "1px solid rgba(148,163,184,0.3)",
-                    background: isSelected
-                      ? "rgba(59,130,246,0.15)"
-                      : "rgba(15,23,42,0.5)",
-                    color: "#e5e7eb",
-                    cursor: "pointer",
-                    fontSize: "0.9rem",
-                    transition: "all 0.2s ease",
-                  }}
-                >
-                  {value.label}
-                </button>
-              );
-            })}
+            {VALUE_OPTIONS.map((value) => renderValueButton(value))}
           </div>
 
-          {selectedValues.length > 0 && (
-            <div style={{ marginBottom: "2rem" }}>
-              <p
-                style={{
-                  fontSize: "0.95rem",
-                  color: "#94a3b8",
-                  marginBottom: "1rem",
-                }}
-              >
-                Rank your selected values (1 = most important):
-              </p>
-              {selectedValues
-                .sort((a, b) => a.rank - b.rank)
-                .map((value) => (
-                  <div
-                    key={value.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "1rem",
-                      marginBottom: "0.75rem",
-                      padding: "0.75rem",
-                      background: "rgba(15,23,42,0.5)",
-                      borderRadius: "0.5rem",
-                    }}
-                  >
-                    <span style={{ minWidth: "80px", color: "#e5e7eb" }}>
-                      {value.label}
-                    </span>
-                    <select
-                      value={value.rank}
-                      onChange={(e) => updateRank(value.id, parseInt(e.target.value))}
-                      style={{
-                        padding: "0.4rem 0.6rem",
-                        borderRadius: "0.4rem",
-                        background: "rgba(15,23,42,0.8)",
-                        border: "1px solid rgba(148,163,184,0.3)",
-                        color: "#e5e7eb",
-                        cursor: "pointer",
-                      }}
-                    >
-                      {[1, 2, 3, 4, 5].map((rank) => (
-                        <option key={rank} value={rank}>
-                          {rank}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
-            </div>
-          )}
-
-          <div style={{ display: "flex", gap: "1rem", justifyContent: "space-between" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "1rem",
+              justifyContent: "space-between",
+              marginTop: "1.5rem",
+            }}
+          >
             <Button variant="secondary" onClick={() => setStep(0)}>
               Back
             </Button>
-            <Button
-              variant="primary"
-              onClick={() => setStep(2)}
-              disabled={selectedValues.length === 0}
-            >
+            <Button variant="primary" onClick={() => setStep(2)} disabled={!canProceedFromValues}>
               Next
             </Button>
           </div>
@@ -235,130 +402,138 @@ export default function SelfOSWizard({ initialProfile = null, onCancel, onComple
     );
   }
 
-  // Screen 2: Personality Style
   if (step === 2) {
-    const updateTrait = (traitId, value) => {
-      const existing = formData.traits.find((t) => t.id === traitId);
-      const traitDef = PREDEFINED_TRAITS.find((t) => t.id === traitId);
-      
-      if (existing) {
-        setFormData({
-          ...formData,
-          traits: formData.traits.map((t) =>
-            t.id === traitId ? { ...t, value } : t
-          ),
-        });
-      } else {
-        setFormData({
-          ...formData,
-          traits: [
-            ...formData.traits,
-            {
-              id: traitId,
-              label: traitDef.label,
-              dimension: "personality",
-              value,
-            },
-          ],
-        });
-      }
-    };
-
-    const getTraitValue = (traitId) => {
-      const trait = formData.traits.find((t) => t.id === traitId);
-      return trait?.value || null;
-    };
-
     return (
       <Card>
-        <Section title="Personality Style">
-          <p
-            style={{
-              fontSize: "0.95rem",
-              color: "#94a3b8",
-              marginBottom: "2rem",
-            }}
-          >
-            Which side feels closer to you in daily life?
-          </p>
+        <ProgressLabel step={step} />
+        <Section title="Values - Ranking">
+          <HelperText>
+            Choose 3-5 of your selected values as your core set, then rank them (1 = most important).
+          </HelperText>
+          {coreMessage && (
+            <div style={{ color: "#fbbf24", fontSize: "0.9rem", marginBottom: "0.5rem" }}>
+              {coreMessage}
+            </div>
+          )}
 
-          {PREDEFINED_TRAITS.map((trait) => {
-            const currentValue = getTraitValue(trait.id);
-            return (
-              <div
-                key={trait.id}
+          <div style={{ marginBottom: "1.25rem" }}>
+            <h4
+              style={{
+                fontSize: "1.05rem",
+                marginBottom: "0.75rem",
+                color: "#e5e7eb",
+              }}
+            >
+              Mark your core values (3-5)
+            </h4>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                gap: "0.9rem",
+              }}
+            >
+              {selectedValues.map((value) => {
+                const isCore = coreValueKeys.includes(value.key);
+                return (
+                  <button
+                    key={value.key}
+                    onClick={() => handleToggleCore(value.key)}
+                    style={{
+                      padding: "0.85rem 1rem",
+                      borderRadius: "0.75rem",
+                      border: isCore
+                        ? "2px solid rgba(96,165,250,0.9)"
+                        : "1px solid rgba(148,163,184,0.35)",
+                      background: isCore ? "rgba(59,130,246,0.14)" : "rgba(15,23,42,0.65)",
+                      color: "#e5e7eb",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      transition: "all 0.18s ease",
+                    }}
+                  >
+                    <div style={{ fontWeight: 600 }}>{value.label}</div>
+                    <div style={{ color: "#94a3b8", fontSize: "0.85rem", marginTop: "0.35rem" }}>
+                      {isCore ? "Marked as core" : "Tap to mark as core"}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {coreValues.length > 0 && (
+            <div style={{ marginBottom: "1.5rem" }}>
+              <h4
                 style={{
-                  marginBottom: "2rem",
-                  padding: "1.25rem",
-                  background: "rgba(15,23,42,0.5)",
-                  borderRadius: "0.75rem",
+                  fontSize: "1.05rem",
+                  marginBottom: "0.75rem",
+                  color: "#e5e7eb",
                 }}
               >
-                <h4
-                  style={{
-                    fontSize: "1.1rem",
-                    marginBottom: "0.5rem",
-                    color: "#e5e7eb",
-                  }}
-                >
-                  {trait.label}
-                </h4>
-                <p
-                  style={{
-                    fontSize: "0.85rem",
-                    color: "#94a3b8",
-                    marginBottom: "1rem",
-                  }}
-                >
-                  {trait.description}
-                </p>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "0.75rem",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {["low", "medium", "high"].map((val) => {
-                    const isSelected = currentValue === val;
-                    return (
-                      <button
-                        key={val}
-                        onClick={() => updateTrait(trait.id, val)}
+                Rank your core values
+              </h4>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+                {coreValues.map((value) => {
+                  const usedByOthers = Object.entries(coreRanks).reduce((set, [key, rank]) => {
+                    if (key !== value.key && Number.isFinite(rank)) set.add(rank);
+                    return set;
+                  }, new Set());
+
+                  return (
+                    <div
+                      key={value.key}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "1rem",
+                        padding: "0.85rem",
+                        background: "rgba(15,23,42,0.6)",
+                        borderRadius: "0.75rem",
+                        border: "1px solid rgba(148,163,184,0.25)",
+                      }}
+                    >
+                      <div style={{ color: "#e5e7eb", minWidth: "180px" }}>{value.label}</div>
+                      <select
+                        value={coreRanks[value.key] || ""}
+                        onChange={(e) => updateCoreRank(value.key, Number(e.target.value))}
                         style={{
-                          padding: "0.6rem 1.2rem",
-                          borderRadius: "0.5rem",
-                          border: isSelected
-                            ? "2px solid rgba(96,165,250,0.9)"
-                            : "1px solid rgba(148,163,184,0.3)",
-                          background: isSelected
-                            ? "rgba(59,130,246,0.15)"
-                            : "rgba(15,23,42,0.8)",
+                          padding: "0.45rem 0.65rem",
+                          borderRadius: "0.6rem",
+                          background: "rgba(15,23,42,0.85)",
+                          border: "1px solid rgba(148,163,184,0.35)",
                           color: "#e5e7eb",
-                          cursor: "pointer",
-                          fontSize: "0.9rem",
-                          textTransform: "capitalize",
-                          transition: "all 0.2s ease",
+                          minWidth: "120px",
                         }}
                       >
-                        {val}
-                      </button>
-                    );
-                  })}
-                </div>
+                        <option value="" disabled>
+                          Select rank
+                        </option>
+                        {[1, 2, 3, 4, 5].map((rank) => (
+                          <option key={rank} value={rank} disabled={usedByOthers.has(rank)}>
+                            {rank}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+          )}
 
-          <div style={{ display: "flex", gap: "1rem", justifyContent: "space-between" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "1rem",
+              justifyContent: "space-between",
+              marginTop: "1rem",
+            }}
+          >
             <Button variant="secondary" onClick={() => setStep(1)}>
               Back
             </Button>
-            <Button
-              variant="primary"
-              onClick={() => setStep(3)}
-              disabled={formData.traits.length < PREDEFINED_TRAITS.length}
-            >
+            <Button variant="primary" onClick={() => setStep(3)} disabled={!canProceedFromRanking}>
               Next
             </Button>
           </div>
@@ -367,141 +542,75 @@ export default function SelfOSWizard({ initialProfile = null, onCancel, onComple
     );
   }
 
-  // Screen 3: Energy Rhythms
   if (step === 3) {
-    const updateEnergy = (energyId, value, label) => {
-      const existing = formData.energy.find((e) => e.id === energyId);
-      if (existing) {
-        setFormData({
-          ...formData,
-          energy: formData.energy.map((e) =>
-            e.id === energyId ? { ...e, value, label } : e
-          ),
-        });
-      } else {
-        setFormData({
-          ...formData,
-          energy: [
-            ...formData.energy,
-            {
-              id: energyId,
-              label,
-              value,
-            },
-          ],
-        });
-      }
-    };
-
-    const getEnergyValue = (energyId) => {
-      const energy = formData.energy.find((e) => e.id === energyId);
-      return energy?.value || null;
-    };
-
     return (
       <Card>
-        <Section title="Energy Rhythms">
-          <div style={{ marginBottom: "2rem" }}>
-            <h4
-              style={{
-                fontSize: "1.1rem",
-                marginBottom: "0.75rem",
-                color: "#e5e7eb",
-              }}
-            >
-              When do you usually feel most clear and focused?
-            </h4>
-            <div
-              style={{
-                display: "flex",
-                gap: "0.75rem",
-                flexWrap: "wrap",
-              }}
-            >
-              {CHRONOTYPE_OPTIONS.map((option) => {
-                const isSelected = getEnergyValue("chronotype") === option.id;
-                return (
-                  <button
-                    key={option.id}
-                    onClick={() => updateEnergy("chronotype", option.id, option.label)}
-                    style={{
-                      padding: "0.6rem 1.2rem",
-                      borderRadius: "0.5rem",
-                      border: isSelected
-                        ? "2px solid rgba(96,165,250,0.9)"
-                        : "1px solid rgba(148,163,184,0.3)",
-                      background: isSelected
-                        ? "rgba(59,130,246,0.15)"
-                        : "rgba(15,23,42,0.8)",
-                      color: "#e5e7eb",
-                      cursor: "pointer",
-                      fontSize: "0.9rem",
-                      transition: "all 0.2s ease",
-                    }}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+        <ProgressLabel step={step} />
+        <Section title="Personality Style - Sliders">
+          <HelperText>
+            Sliders capture tendencies, not boxes. Move each slider to what feels true for daily life.
+          </HelperText>
 
-          <div style={{ marginBottom: "2rem" }}>
-            <h4
-              style={{
-                fontSize: "1.1rem",
-                marginBottom: "0.75rem",
-                color: "#e5e7eb",
-              }}
-            >
-              How do you usually recharge your energy?
-            </h4>
-            <div
-              style={{
-                display: "flex",
-                gap: "0.75rem",
-                flexWrap: "wrap",
-              }}
-            >
-              {SOCIAL_ENERGY_OPTIONS.map((option) => {
-                const isSelected = getEnergyValue("social_energy") === option.id;
-                return (
-                  <button
-                    key={option.id}
-                    onClick={() => updateEnergy("social_energy", option.id, option.label)}
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1rem" }}>
+            {PERSONALITY_DIMENSIONS.map((dim) => {
+              const score = Number.isFinite(personalityScores[dim.key]) ? personalityScores[dim.key] : 50;
+              const { percentLeft, percentRight } = calculatePercents(score);
+              return (
+                <div
+                  key={dim.key}
+                  style={{
+                    padding: "1rem",
+                    background: "rgba(15,23,42,0.6)",
+                    borderRadius: "0.9rem",
+                    border: "1px solid rgba(148,163,184,0.25)",
+                  }}
+                >
+                  <div
                     style={{
-                      padding: "0.6rem 1.2rem",
-                      borderRadius: "0.5rem",
-                      border: isSelected
-                        ? "2px solid rgba(96,165,250,0.9)"
-                        : "1px solid rgba(148,163,184,0.3)",
-                      background: isSelected
-                        ? "rgba(59,130,246,0.15)"
-                        : "rgba(15,23,42,0.8)",
-                      color: "#e5e7eb",
-                      cursor: "pointer",
-                      fontSize: "0.9rem",
-                      transition: "all 0.2s ease",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "0.5rem",
                     }}
                   >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
+                    <div style={{ color: "#e5e7eb", fontWeight: 600 }}>{dim.labelLeft}</div>
+                    <div style={{ color: "#94a3b8", fontSize: "0.9rem" }}>{dim.description}</div>
+                    <div style={{ color: "#e5e7eb", fontWeight: 600 }}>{dim.labelRight}</div>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={score}
+                    onChange={(e) => updatePersonalityScore(dim.key, Number(e.target.value))}
+                    style={{ width: "100%" }}
+                  />
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginTop: "0.35rem",
+                      color: "#cbd5e1",
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    <span>
+                      {dim.labelLeft} {percentLeft}%
+                    </span>
+                    <span>
+                      {dim.labelRight} {percentRight}%
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           <div style={{ display: "flex", gap: "1rem", justifyContent: "space-between" }}>
             <Button variant="secondary" onClick={() => setStep(2)}>
               Back
             </Button>
-            <Button
-              variant="primary"
-              onClick={() => setStep(4)}
-              disabled={
-                !getEnergyValue("chronotype") || !getEnergyValue("social_energy")
-              }
-            >
+            <Button variant="primary" onClick={() => setStep(4)}>
               Next
             </Button>
           </div>
@@ -510,153 +619,141 @@ export default function SelfOSWizard({ initialProfile = null, onCancel, onComple
     );
   }
 
-  // Screen 4: Life Context & Flags
   if (step === 4) {
-    const toggleFlag = (flagId) => {
-      const existing = formData.flags.find((f) => f.id === flagId);
-      const flagDef = PREDEFINED_FLAGS.find((f) => f.id === flagId);
-      
-      if (existing) {
-        setFormData({
-          ...formData,
-          flags: formData.flags.filter((f) => f.id !== flagId),
-        });
-      } else {
-        setFormData({
-          ...formData,
-          flags: [
-            ...formData.flags,
-            {
-              id: flagId,
-              text: flagDef.text,
-              type: flagDef.type,
-              active: true,
-            },
-          ],
-        });
-      }
-    };
-
-    const isFlagSelected = (flagId) => {
-      return formData.flags.some((f) => f.id === flagId);
-    };
-
-    const supportFlags = PREDEFINED_FLAGS.filter((f) => f.type === "identity");
-    const riskFlags = PREDEFINED_FLAGS.filter((f) => f.type === "risk");
+    const { percentLeft, percentRight } = calculatePercents(energyPreview.socialEnergy.score);
 
     return (
       <Card>
-        <Section title="Life Context & Flags">
-          <p
-            style={{
-              fontSize: "0.95rem",
-              color: "#94a3b8",
-              marginBottom: "2rem",
-            }}
-          >
-            Select any that apply to you right now:
-          </p>
+        <ProgressLabel step={step} />
+        <Section title="Energy Rhythms">
+          <HelperText>
+            Help HumanOS respect your natural peaks and dips. You can skip or keep defaults if you are not
+            sure.
+          </HelperText>
 
-          <div style={{ marginBottom: "2rem" }}>
-            <h4
-              style={{
-                fontSize: "1.1rem",
-                marginBottom: "1rem",
-                color: "#e5e7eb",
-              }}
-            >
-              Support / Identity
+          <div style={{ marginBottom: "1.5rem" }}>
+            <h4 style={{ fontSize: "1.05rem", color: "#e5e7eb", marginBottom: "0.5rem" }}>
+              When do you usually feel most clear and focused?
             </h4>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.75rem",
-              }}
-            >
-              {supportFlags.map((flag) => {
-                const isSelected = isFlagSelected(flag.id);
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+              {CHRONOTYPE_OPTIONS.map((option) => {
+                const isSelected = formData.chronotype === option.value;
                 return (
-                  <label
-                    key={flag.id}
+                  <button
+                    key={option.value}
+                    onClick={() => setFormData({ ...formData, chronotype: option.value })}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.75rem",
-                      padding: "0.75rem",
-                      background: "rgba(15,23,42,0.5)",
-                      borderRadius: "0.5rem",
+                      padding: "0.7rem 1.1rem",
+                      borderRadius: "0.6rem",
+                      border: isSelected
+                        ? "2px solid rgba(96,165,250,0.9)"
+                        : "1px solid rgba(148,163,184,0.35)",
+                      background: isSelected ? "rgba(59,130,246,0.14)" : "rgba(15,23,42,0.65)",
+                      color: "#e5e7eb",
                       cursor: "pointer",
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleFlag(flag.id)}
-                      style={{
-                        width: "1.2rem",
-                        height: "1.2rem",
-                        cursor: "pointer",
-                      }}
-                    />
-                    <span style={{ color: "#e5e7eb", fontSize: "0.95rem" }}>
-                      {flag.text}
-                    </span>
-                  </label>
+                    {option.label}
+                  </button>
                 );
               })}
             </div>
           </div>
 
-          <div style={{ marginBottom: "2rem" }}>
-            <h4
-              style={{
-                fontSize: "1.1rem",
-                marginBottom: "1rem",
-                color: "#e5e7eb",
-              }}
-            >
-              Risk / Stress
+          <div style={{ marginBottom: "1.5rem" }}>
+            <h4 style={{ fontSize: "1.05rem", color: "#e5e7eb", marginBottom: "0.5rem" }}>
+              Focus windows (optional, up to 3)
             </h4>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.75rem",
-              }}
-            >
-              {riskFlags.map((flag) => {
-                const isSelected = isFlagSelected(flag.id);
-                return (
-                  <label
-                    key={flag.id}
+            {focusMessage && (
+              <div style={{ color: "#fbbf24", fontSize: "0.9rem", marginBottom: "0.4rem" }}>
+                {focusMessage}
+              </div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              {focusWindows.map((window, index) => (
+                <div
+                  key={`${index}-${window.label || "focus"}`}
+                  style={{
+                    padding: "0.85rem",
+                    background: "rgba(15,23,42,0.6)",
+                    borderRadius: "0.75rem",
+                    border: "1px solid rgba(148,163,184,0.25)",
+                    display: "grid",
+                    gridTemplateColumns: "2fr 1fr 1fr auto",
+                    gap: "0.6rem",
+                    alignItems: "center",
+                  }}
+                >
+                  <input
+                    type="text"
+                    placeholder="Label (e.g., Morning deep work)"
+                    value={window.label}
+                    onChange={(e) => updateFocusWindow(index, "label", e.target.value)}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.75rem",
-                      padding: "0.75rem",
-                      background: "rgba(15,23,42,0.5)",
+                      padding: "0.6rem",
                       borderRadius: "0.5rem",
-                      cursor: "pointer",
+                      background: "rgba(15,23,42,0.85)",
+                      border: "1px solid rgba(148,163,184,0.3)",
+                      color: "#e5e7eb",
                     }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleFlag(flag.id)}
-                      style={{
-                        width: "1.2rem",
-                        height: "1.2rem",
-                        cursor: "pointer",
-                      }}
-                    />
-                    <span style={{ color: "#e5e7eb", fontSize: "0.95rem" }}>
-                      {flag.text}
-                    </span>
-                  </label>
-                );
-              })}
+                  />
+                  <input
+                    type="time"
+                    value={window.startTime}
+                    onChange={(e) => updateFocusWindow(index, "startTime", e.target.value)}
+                    style={{
+                      padding: "0.6rem",
+                      borderRadius: "0.5rem",
+                      background: "rgba(15,23,42,0.85)",
+                      border: "1px solid rgba(148,163,184,0.3)",
+                      color: "#e5e7eb",
+                    }}
+                  />
+                  <input
+                    type="time"
+                    value={window.endTime}
+                    onChange={(e) => updateFocusWindow(index, "endTime", e.target.value)}
+                    style={{
+                      padding: "0.6rem",
+                      borderRadius: "0.5rem",
+                      background: "rgba(15,23,42,0.85)",
+                      border: "1px solid rgba(148,163,184,0.3)",
+                      color: "#e5e7eb",
+                    }}
+                  />
+                  <Button variant="ghost" onClick={() => removeFocusWindow(index)}>
+                    Remove
+                  </Button>
+                </div>
+              ))}
             </div>
+            <div style={{ marginTop: "0.75rem" }}>
+              <Button
+                variant="secondary"
+                onClick={addFocusWindow}
+                disabled={focusWindows.length >= MAX_FOCUS_WINDOWS}
+              >
+                Add focus window
+              </Button>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: "1.5rem" }}>
+            <h4 style={{ fontSize: "1.05rem", color: "#e5e7eb", marginBottom: "0.5rem" }}>
+              Social energy
+            </h4>
+            <p style={{ color: "#94a3b8", fontSize: "0.9rem", marginBottom: "0.4rem" }}>
+              {DEFAULT_SOCIAL_ENERGY_LABELS.labelLeft} {percentLeft}% - {DEFAULT_SOCIAL_ENERGY_LABELS.labelRight}{" "}
+              {percentRight}%
+            </p>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={energyPreview.socialEnergy.score}
+              onChange={(e) => setFormData({ ...formData, socialEnergyScore: Number(e.target.value) })}
+              style={{ width: "100%" }}
+            />
           </div>
 
           <div style={{ display: "flex", gap: "1rem", justifyContent: "space-between" }}>
@@ -672,203 +769,254 @@ export default function SelfOSWizard({ initialProfile = null, onCancel, onComple
     );
   }
 
-  // Screen 5: Summary & Confirmation
   if (step === 5) {
-    const handleSave = () => {
-      const profile = buildProfileFromFormData(formData);
-      onComplete(profile);
-    };
+    const customSelectedFlags = selectedFlagKeys
+      .filter((key) => !flagLabelLookup[key])
+      .map((key) => ({ key, label: flagLabelLookup[key]?.label || key, type: "other" }));
 
     return (
       <Card>
-        <Section title="Summary & Confirmation">
-          <p
-            style={{
-              fontSize: "0.95rem",
-              color: "#94a3b8",
-              marginBottom: "2rem",
-            }}
-          >
-            Review your Self OS profile:
-          </p>
+        <ProgressLabel step={step} />
+        <Section title="Life Context & Flags">
+          <HelperText>
+            Pick any that give context for your life right now. These help tailor plans and expectations.
+          </HelperText>
 
-          {/* Values Summary */}
-          {formData.values.length > 0 && (
-            <div style={{ marginBottom: "1.5rem" }}>
-              <h4
-                style={{
-                  fontSize: "1.1rem",
-                  marginBottom: "0.75rem",
-                  color: "#e5e7eb",
-                }}
-              >
-                Core Values
-              </h4>
-              <div
-                style={{
-                  padding: "1rem",
-                  background: "rgba(15,23,42,0.5)",
-                  borderRadius: "0.5rem",
-                }}
-              >
-                {formData.values
-                  .sort((a, b) => a.rank - b.rank)
-                  .map((value) => (
-                    <div
-                      key={value.id}
-                      style={{
-                        marginBottom: "0.5rem",
-                        color: "#e5e7eb",
-                        fontSize: "0.95rem",
-                      }}
-                    >
+          {renderFlagGroup("Roles", LIFE_FLAG_OPTIONS.roles)}
+          {renderFlagGroup("Constraints", LIFE_FLAG_OPTIONS.constraints)}
+          {renderFlagGroup("Transitions", LIFE_FLAG_OPTIONS.transitions)}
+          {renderFlagGroup("Other", [...LIFE_FLAG_OPTIONS.other, ...customSelectedFlags])}
+
+          <div style={{ display: "flex", gap: "1rem", justifyContent: "space-between", marginTop: "1.5rem" }}>
+            <Button variant="secondary" onClick={() => setStep(4)}>
+              Back
+            </Button>
+            <Button variant="primary" onClick={() => setStep(6)}>
+              Next
+            </Button>
+          </div>
+        </Section>
+      </Card>
+    );
+  }
+
+  if (step === 6) {
+    const valuesPreview = buildValuesFromSelections(selectedValueKeys, coreValueKeys, coreRanks);
+    const summaryCoreValues = valuesPreview
+      .filter((v) => v.priorityBand === "core")
+      .sort((a, b) => (a.rank || 99) - (b.rank || 99));
+    const summarySupporting = valuesPreview.filter((v) => v.priorityBand === "supporting");
+    const { percentLeft, percentRight } = calculatePercents(energyPreview.socialEnergy.score);
+    const flagsByType = flagsPreview.reduce(
+      (acc, flag) => {
+        if (!flag.isActive) return acc;
+        acc[flag.type] = acc[flag.type] || [];
+        acc[flag.type].push(flag);
+        return acc;
+      },
+      { role: [], constraint: [], transition: [], other: [] }
+    );
+    const chronotypeLabel =
+      CHRONOTYPE_OPTIONS.find((option) => option.value === energyPreview.chronotype)?.label || "Mixed";
+
+    return (
+      <Card>
+        <ProgressLabel step={step} />
+        <Section title="Summary & Confirmation">
+          <HelperText>Take a quick look. You can always adjust later.</HelperText>
+
+          <div style={{ display: "grid", gap: "1rem" }}>
+            <div>
+              <h4 style={{ color: "#e5e7eb", marginBottom: "0.5rem" }}>Core values</h4>
+              {summaryCoreValues.length === 0 ? (
+                <div style={{ color: "#94a3b8", fontSize: "0.95rem" }}>No core values selected.</div>
+              ) : (
+                <div
+                  style={{
+                    padding: "0.9rem",
+                    background: "rgba(15,23,42,0.6)",
+                    borderRadius: "0.75rem",
+                    border: "1px solid rgba(148,163,184,0.25)",
+                  }}
+                >
+                  {summaryCoreValues.map((value) => (
+                    <div key={value.key} style={{ color: "#e5e7eb", marginBottom: "0.35rem" }}>
                       {value.rank}. {value.label}
                     </div>
                   ))}
-              </div>
+                </div>
+              )}
             </div>
-          )}
 
-          {/* Traits Summary */}
-          {formData.traits.length > 0 && (
-            <div style={{ marginBottom: "1.5rem" }}>
-              <h4
-                style={{
-                  fontSize: "1.1rem",
-                  marginBottom: "0.75rem",
-                  color: "#e5e7eb",
-                }}
-              >
-                Personality Style
-              </h4>
+            <div>
+              <h4 style={{ color: "#e5e7eb", marginBottom: "0.5rem" }}>Supporting values</h4>
+              {summarySupporting.length === 0 ? (
+                <div style={{ color: "#94a3b8", fontSize: "0.95rem" }}>None selected.</div>
+              ) : (
+                <div
+                  style={{
+                    padding: "0.9rem",
+                    background: "rgba(15,23,42,0.6)",
+                    borderRadius: "0.75rem",
+                    border: "1px solid rgba(148,163,184,0.25)",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "0.5rem",
+                  }}
+                >
+                  {summarySupporting.map((value) => (
+                    <span
+                      key={value.key}
+                      style={{
+                        padding: "0.4rem 0.7rem",
+                        borderRadius: "0.6rem",
+                        background: "rgba(59,130,246,0.12)",
+                        color: "#e5e7eb",
+                        fontSize: "0.9rem",
+                        border: "1px solid rgba(96,165,250,0.4)",
+                      }}
+                    >
+                      {value.label}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h4 style={{ color: "#e5e7eb", marginBottom: "0.5rem" }}>Personality sliders</h4>
               <div
                 style={{
-                  padding: "1rem",
-                  background: "rgba(15,23,42,0.5)",
-                  borderRadius: "0.5rem",
+                  padding: "0.9rem",
+                  background: "rgba(15,23,42,0.6)",
+                  borderRadius: "0.75rem",
+                  border: "1px solid rgba(148,163,184,0.25)",
+                  display: "grid",
+                  gap: "0.5rem",
                 }}
               >
-                {formData.traits.map((trait) => (
-                  <div
-                    key={trait.id}
-                    style={{
-                      marginBottom: "0.5rem",
-                      color: "#e5e7eb",
-                      fontSize: "0.95rem",
-                    }}
-                  >
-                    <strong>{trait.label}:</strong> {trait.value}
+                {personalityPreview.map((dim) => (
+                  <div key={dim.key} style={{ color: "#e5e7eb", fontSize: "0.95rem" }}>
+                    {dim.labelLeft} {dim.percentLeft}% - {dim.labelRight} {dim.percentRight}%
                   </div>
                 ))}
               </div>
             </div>
-          )}
 
-          {/* Energy Summary */}
-          {formData.energy.length > 0 && (
-            <div style={{ marginBottom: "1.5rem" }}>
-              <h4
-                style={{
-                  fontSize: "1.1rem",
-                  marginBottom: "0.75rem",
-                  color: "#e5e7eb",
-                }}
-              >
-                Energy Rhythms
-              </h4>
+            <div>
+              <h4 style={{ color: "#e5e7eb", marginBottom: "0.5rem" }}>Energy rhythms</h4>
               <div
                 style={{
-                  padding: "1rem",
-                  background: "rgba(15,23,42,0.5)",
-                  borderRadius: "0.5rem",
+                  padding: "0.9rem",
+                  background: "rgba(15,23,42,0.6)",
+                  borderRadius: "0.75rem",
+                  border: "1px solid rgba(148,163,184,0.25)",
+                  display: "grid",
+                  gap: "0.4rem",
                 }}
               >
-                {formData.energy.map((energy) => (
-                  <div
-                    key={energy.id}
-                    style={{
-                      marginBottom: "0.5rem",
-                      color: "#e5e7eb",
-                      fontSize: "0.95rem",
-                    }}
-                  >
-                    <strong>{energy.label}:</strong> {energy.value}
+                <div style={{ color: "#e5e7eb" }}>
+                  Chronotype: {chronotypeLabel || "Mixed / It depends"}
+                </div>
+                {energyPreview.focusWindows.length > 0 && (
+                  <div style={{ color: "#e5e7eb" }}>
+                    Focus windows:
+                    <ul style={{ paddingLeft: "1.2rem", marginTop: "0.35rem" }}>
+                      {energyPreview.focusWindows.map((window, idx) => (
+                        <li key={`${window.label}-${idx}`} style={{ marginBottom: "0.25rem" }}>
+                          {window.label}: {window.startTime}-{window.endTime}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                ))}
+                )}
+                <div style={{ color: "#e5e7eb" }}>
+                  Social energy: {DEFAULT_SOCIAL_ENERGY_LABELS.labelLeft} {percentLeft}% -{" "}
+                  {DEFAULT_SOCIAL_ENERGY_LABELS.labelRight} {percentRight}%
+                </div>
               </div>
             </div>
-          )}
 
-          {/* Flags Summary */}
-          {formData.flags.length > 0 && (
-            <div style={{ marginBottom: "1.5rem" }}>
-              <h4
+            <div>
+              <h4 style={{ color: "#e5e7eb", marginBottom: "0.5rem" }}>Life context & flags</h4>
+              {["role", "constraint", "transition", "other"].map((typeKey) => {
+                const labelMap = {
+                  role: "Roles",
+                  constraint: "Constraints",
+                  transition: "Transitions",
+                  other: "Other",
+                };
+                const items = flagsByType[typeKey] || [];
+                if (items.length === 0) return null;
+                return (
+                  <div key={typeKey} style={{ marginBottom: "0.5rem" }}>
+                    <div style={{ color: "#94a3b8", marginBottom: "0.25rem" }}>{labelMap[typeKey]}</div>
+                    <div
+                      style={{
+                        padding: "0.75rem",
+                        background: "rgba(15,23,42,0.5)",
+                        borderRadius: "0.65rem",
+                        border: "1px solid rgba(148,163,184,0.25)",
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "0.4rem",
+                      }}
+                    >
+                      {items.map((flag) => (
+                        <span
+                          key={flag.key}
+                          style={{
+                            padding: "0.35rem 0.6rem",
+                            borderRadius: "0.55rem",
+                            background: "rgba(96,165,250,0.14)",
+                            color: "#e5e7eb",
+                            fontSize: "0.9rem",
+                            border: "1px solid rgba(96,165,250,0.35)",
+                          }}
+                        >
+                          {flag.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              {flagsPreview.length === 0 && (
+                <div style={{ color: "#94a3b8", fontSize: "0.95rem" }}>No flags selected.</div>
+              )}
+            </div>
+
+            <div>
+              <h4 style={{ color: "#e5e7eb", marginBottom: "0.5rem" }}>Anything to add?</h4>
+              <textarea
+                value={formData.notes || ""}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                placeholder="Is there anything you'd like HumanOS to keep in mind about you right now?"
                 style={{
-                  fontSize: "1.1rem",
-                  marginBottom: "0.75rem",
+                  width: "100%",
+                  minHeight: "120px",
+                  padding: "0.85rem",
+                  borderRadius: "0.75rem",
+                  background: "rgba(15,23,42,0.85)",
+                  border: "1px solid rgba(148,163,184,0.35)",
                   color: "#e5e7eb",
+                  fontSize: "0.95rem",
+                  fontFamily: "inherit",
+                  resize: "vertical",
                 }}
-              >
-                Life Context & Flags
-              </h4>
-              <div
-                style={{
-                  padding: "1rem",
-                  background: "rgba(15,23,42,0.5)",
-                  borderRadius: "0.5rem",
-                }}
-              >
-                {formData.flags.map((flag) => (
-                  <div
-                    key={flag.id}
-                    style={{
-                      marginBottom: "0.5rem",
-                      color: "#e5e7eb",
-                      fontSize: "0.95rem",
-                    }}
-                  >
-                    {flag.text}
-                  </div>
-                ))}
-              </div>
+              />
             </div>
-          )}
-
-          {/* Optional Notes */}
-          <div style={{ marginBottom: "2rem" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "1.1rem",
-                marginBottom: "0.75rem",
-                color: "#e5e7eb",
-              }}
-            >
-              Anything else you want to remember about where you are in life right now?
-            </label>
-            <textarea
-              value={formData.notes || ""}
-              onChange={(e) =>
-                setFormData({ ...formData, notes: e.target.value })
-              }
-              placeholder="Optional notes..."
-              style={{
-                width: "100%",
-                minHeight: "100px",
-                padding: "0.75rem",
-                borderRadius: "0.5rem",
-                background: "rgba(15,23,42,0.8)",
-                border: "1px solid rgba(148,163,184,0.3)",
-                color: "#e5e7eb",
-                fontSize: "0.95rem",
-                fontFamily: "inherit",
-                resize: "vertical",
-              }}
-            />
           </div>
 
-          <div style={{ display: "flex", gap: "1rem", justifyContent: "space-between" }}>
-            <Button variant="secondary" onClick={() => setStep(4)}>
+          <div
+            style={{
+              display: "flex",
+              gap: "1rem",
+              justifyContent: "space-between",
+              marginTop: "1.5rem",
+            }}
+          >
+            <Button variant="secondary" onClick={() => setStep(5)}>
               Back
             </Button>
             <Button variant="primary" onClick={handleSave}>
@@ -882,4 +1030,3 @@ export default function SelfOSWizard({ initialProfile = null, onCancel, onComple
 
   return null;
 }
-
