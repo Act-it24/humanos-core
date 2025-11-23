@@ -1,51 +1,93 @@
-import React from "react";
+import React, { useState } from "react";
+import { Card, Section, EmptyState, Button } from "../../components";
 
+/**
+ * Journal & Mood Page - Reflection, Emotion & Meaning
+ * 
+ * Displays journal entries, mood check-ins, and pattern insights.
+ * Based on docs/23_journal_mood_blueprint.md
+ */
 export default function JournalMoodPage() {
+  const [activeTab, setActiveTab] = useState("journal"); // 'journal' or 'mood'
+
   return (
-    <section
-      style={{
-        padding: "2rem",
-        background: "#020617",
-        color: "#ffffff",
-        borderRadius: "1.5rem",
-        maxWidth: "720px",
-        margin: "2rem auto",
-        boxShadow: "0 18px 40px rgba(15,23,42,0.9)",
-        border: "1px solid rgba(148,163,184,0.25)",
-      }}
-    >
-      <h2
-        style={{
-          fontSize: "1.8rem",
-          marginBottom: "0.75rem",
-          fontWeight: 600,
-        }}
-      >
-        Journal & Mood OS
-      </h2>
-      <p
-        style={{
-          fontSize: "0.98rem",
-          lineHeight: 1.7,
-          opacity: 0.9,
-          marginBottom: "0.75rem",
-        }}
-      >
-        Journal & Mood OS is the reflective layer of HumanOS. It captures your
-        daily experiences, emotions and patterns so the system can understand
-        what really affects your energy, focus and wellbeing.
-      </p>
-      <p
-        style={{
-          fontSize: "0.9rem",
-          lineHeight: 1.6,
-          opacity: 0.7,
-        }}
-      >
-        Later, this screen will host quick mood check-ins, rich journal entries,
-        and AI reflections that connect your inner world with your plans. For
-        now it is a placeholder wired into the core HumanOS kernel.
-      </p>
-    </section>
+    <div className="page-container">
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+          <h2 className="page-title" style={{ margin: 0 }}>Journal & Mood</h2>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <Button
+              variant={activeTab === "journal" ? "primary" : "secondary"}
+              onClick={() => setActiveTab("journal")}
+            >
+              Journal
+            </Button>
+            <Button
+              variant={activeTab === "mood" ? "primary" : "secondary"}
+              onClick={() => setActiveTab("mood")}
+            >
+              Mood
+            </Button>
+          </div>
+        </div>
+        <p className="page-description">
+          Capture your daily experiences, emotions, and reflections. This helps HumanOS
+          understand what affects your energy, focus, and wellbeing.
+        </p>
+
+        {activeTab === "journal" ? (
+          <>
+            {/* Journal Tab */}
+            <Section title="Recent Entries">
+              <EmptyState
+                title="No journal entries yet"
+                description="Journal entries help you reflect on your experiences and connect your inner world with your plans and goals."
+                action={
+                  <Button variant="primary" onClick={() => alert("Journal editor coming soon")}>
+                    New Entry
+                  </Button>
+                }
+              />
+            </Section>
+
+            <Section title="Timeline">
+              <EmptyState
+                title="Timeline empty"
+                description="Your journal timeline will show entries chronologically, with tags and links to goals or days."
+              />
+            </Section>
+          </>
+        ) : (
+          <>
+            {/* Mood Tab */}
+            <Section title="Quick Check-In">
+              <EmptyState
+                title="No mood logged today"
+                description="Quick mood check-ins take just seconds and help track emotional patterns over time."
+                action={
+                  <Button variant="primary" onClick={() => alert("Mood check-in coming soon")}>
+                    Check In Now
+                  </Button>
+                }
+              />
+            </Section>
+
+            <Section title="Mood Trends">
+              <EmptyState
+                title="No mood data yet"
+                description="Mood trends will show patterns over time, helping you understand what affects your emotional state."
+              />
+            </Section>
+
+            <Section title="Pattern Insights">
+              <EmptyState
+                title="No insights yet"
+                description="AI-assisted insights will highlight patterns (e.g., 'Work-related entries often have low mood') once you have enough data."
+              />
+            </Section>
+          </>
+        )}
+      </Card>
+    </div>
   );
 }

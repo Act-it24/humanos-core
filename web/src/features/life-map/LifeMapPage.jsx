@@ -1,52 +1,59 @@
 import React from "react";
+import { Card, Section, EmptyState, Button } from "../../components";
 
+/**
+ * Life Map Page - Goals, Domains & Projects
+ * 
+ * Displays user's life domains, goals, projects, and tasks hierarchy.
+ * Based on docs/21_life_map_blueprint.md
+ */
 export default function LifeMapPage() {
   return (
-    <section
-      style={{
-        padding: "2rem",
-        background: "#020617",
-        color: "#ffffff",
-        borderRadius: "1.5rem",
-        maxWidth: "720px",
-        margin: "2rem auto",
-        boxShadow: "0 18px 40px rgba(15,23,42,0.9)",
-        border: "1px solid rgba(148,163,184,0.25)",
-      }}
-    >
-      <h2
-        style={{
-          fontSize: "1.8rem",
-          marginBottom: "0.75rem",
-          fontWeight: 600,
-        }}
-      >
-        Life Map OS (Domains, Goals & Projects)
-      </h2>
-      <p
-        style={{
-          fontSize: "0.98rem",
-          lineHeight: 1.7,
-          opacity: 0.9,
-          marginBottom: "0.75rem",
-        }}
-      >
-        Life Map OS organizes your life into domains, goals and projects. It
-        ties everything you do back to what truly matters: health, relationships,
-        creativity, work, money, and more.
-      </p>
-      <p
-        style={{
-          fontSize: "0.9rem",
-          lineHeight: 1.6,
-          opacity: 0.7,
-        }}
-      >
-        In future versions, this screen will show your active domains, long-term
-        goals, and concrete projects, all connected to your Self OS values and
-        traits. For now, it is a placeholder so we can wire the architecture and
-        blueprints into real UI.
-      </p>
-    </section>
+    <div className="page-container">
+      <Card>
+        <h2 className="page-title">Life Map</h2>
+        <p className="page-description">
+          Your life organized into domains, goals, and projects. This map connects
+          what you do day-to-day with what truly matters to you.
+        </p>
+
+        {/* Domains Overview */}
+        <Section title="Life Domains">
+          <EmptyState
+            title="No domains set up"
+            description="Life domains (Health, Work, Relationships, etc.) organize your goals and projects. Set up your domains to begin mapping your life."
+            action={
+              <Button variant="primary" onClick={() => alert("Domain setup coming soon")}>
+                Set Up Domains
+              </Button>
+            }
+          />
+        </Section>
+
+        {/* Active Goals Section */}
+        <Section title="Active Goals">
+          <EmptyState
+            title="No goals yet"
+            description="Goals are medium to long-term intentions in your life domains. Create goals that align with your values and current focus."
+          />
+        </Section>
+
+        {/* Projects Section */}
+        <Section title="Active Projects">
+          <EmptyState
+            title="No projects yet"
+            description="Projects are concrete initiatives that support your goals. Break down goals into actionable projects with clear outcomes."
+          />
+        </Section>
+
+        {/* Life Map Overview */}
+        <Section title="Life Map Overview">
+          <EmptyState
+            title="Map not yet created"
+            description="Once you have domains and goals, you'll see a visual overview of your life map showing how everything connects."
+          />
+        </Section>
+      </Card>
+    </div>
   );
 }
