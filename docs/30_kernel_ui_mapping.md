@@ -134,14 +134,12 @@ web/src/features/
 
 **Blueprint:** `docs/22_daily_os_blueprint.md`  
 **Component Path:** `web/src/features/daily-os/DailyOSPage.jsx`  
-**Current Status:** Placeholder component
+**Current Status:** Daily planning MVP (v0.1)
 
-**Planned Components:**
-- `TodayView` - Focus items for today (3-7 items), time-bound events
-- `WeekView` - This Week summary with distributed tasks
-- `DayPlanCard` - Individual day's plan with load indicator
-- `RoutineStrip` - Morning/evening/weekly routine display
-- `PlanningAssistant` - AI-powered planning suggestions
+**Implemented Components (v0.1):**
+- `dailyOsModel.js` - DailyPlan/WeeklyPlan shapes plus helpers to create empty plans, clone with updates, and build week summaries.
+- `DailyOSWizard.jsx` - Inline planning wizard for Today: intro, focus tagline, focus blocks, tasks, summary & confirm.
+- `DailyOSPage.jsx` - Hosts Today / This Week views, renders empty state for new users, integrates the wizard, and keeps in-memory plans per date.
 
 **Routes (future):**
 - `/today` - Today's view (default)
