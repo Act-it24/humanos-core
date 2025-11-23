@@ -111,14 +111,12 @@ web/src/features/
 
 **Blueprint:** `docs/21_life_map_blueprint.md`  
 **Component Path:** `web/src/features/life-map/LifeMapPage.jsx`  
-**Current Status:** Placeholder component
+**Current Status:** Onboarding wizard + summary view (v0.1)
 
-**Planned Components:**
-- `DomainList` - List of life domains (Health, Work, Money, Relationships, etc.)
-- `GoalCard` - Individual goal display with status, links to values
-- `ProjectEditor` - Create/edit projects that support goals
-- `LifeMapOverview` - High-level visual map of all domains and goals
-- `GoalDetailView` - Expanded view of one goal with projects and tasks
+**Implemented Components (v0.1):**
+- `LifeMapWizard` (`LifeMapWizard.jsx`) - Multi-step onboarding flow (intro, domains, health check, focus, goals, optional projects, summary) with light Self OS-based domain suggestions.
+- `LifeMapPage` - Hosts the wizard inline, shows an empty-state CTA when no map exists, and renders a structured summary of domains, goals, and first projects with a Review / Update action.
+- `lifeMapModel.js` - Frontend Life Map data model and helpers (create/hydrate/build map, suggest domains from Self OS).
 
 **Routes (future):**
 - `/life-map` - Main overview
