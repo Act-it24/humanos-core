@@ -4,6 +4,8 @@ import SelfOSPage from "./features/self-os/SelfOSPage.jsx";
 import LifeMapPage from "./features/life-map/LifeMapPage.jsx";
 import DailyOSPage from "./features/daily-os/DailyOSPage.jsx";
 import JournalMoodPage from "./features/journal-mood/JournalMoodPage.jsx";
+import IntegrationsPage from "./features/integrations/IntegrationsPage.jsx";
+import AutomationsPage from "./features/automations/AutomationsPage.jsx";
 
 function App() {
   return (
@@ -49,11 +51,15 @@ function App() {
           paddingBottom: "3rem",
         }}
       >
-        {/* Kernel pillars we start with */}
+        {/* Kernel pillars */}
         <SelfOSPage />
         <LifeMapPage />
         <DailyOSPage />
         <JournalMoodPage />
+
+        {/* System layer: integrations + automations */}
+        <IntegrationsPage />
+        <AutomationsPage />
       </main>
     </div>
   );
