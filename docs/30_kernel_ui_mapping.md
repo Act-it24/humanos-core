@@ -158,12 +158,13 @@ web/src/features/
 
 **Blueprint:** `docs/23_journal_mood_blueprint.md`  
 **Component Path:** `web/src/features/journal-mood/JournalMoodPage.jsx`  
-**Current Status:** Placeholder component
+**Current Status:** Today + History views (v0.1, frontend-only)
 
-**Planned Components:**
-- `MoodCheckIn` - Quick mood/emotion input (1-2 taps)
-- `JournalEditor` - Free-form text entry with optional tags
-- `JournalTimeline` - Chronological view of entries
+**Implemented Components (v0.1):**
+- `JournalMoodPage.jsx` - Today view (mood check-in/summary, entry editor, today's entries) and History view (day summaries + per-day details).
+- `journalModel.js` - MoodSnapshot/JournalEntry shapes, creators, and grouping helpers for day summaries.
+
+**Planned Components (future):**
 - `MoodTrendChart` - Simple visualization of mood over time
 - `ReflectionSummary` - AI-generated weekly/monthly summaries
 
