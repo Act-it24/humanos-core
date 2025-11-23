@@ -1,13 +1,14 @@
 import React from "react";
 import "./App.css";
 import SelfOSPage from "./features/self-os/SelfOSPage.jsx";
+import LifeMapPage from "./features/life-map/LifeMapPage.jsx";
 
 function App() {
   return (
     <div
       style={{
         minHeight: "100vh",
-        background: "#020617",
+        background: "radial-gradient(circle at top, #0f172a 0, #020617 55%, #000 100%)",
         color: "#ffffff",
         display: "flex",
         flexDirection: "column",
@@ -39,9 +40,15 @@ function App() {
         </p>
       </header>
 
-      <main style={{ flex: 1 }}>
-        {/* First pillar we bring to life: Self OS */}
+      <main
+        style={{
+          flex: 1,
+          paddingBottom: "3rem",
+        }}
+      >
+        {/* Kernel pillars we start with */}
         <SelfOSPage />
+        <LifeMapPage />
       </main>
     </div>
   );
