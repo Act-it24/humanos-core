@@ -3,6 +3,7 @@ import "./App.css";
 import SelfOSPage from "./features/self-os/SelfOSPage.jsx";
 import LifeMapPage from "./features/life-map/LifeMapPage.jsx";
 import DailyOSPage from "./features/daily-os/DailyOSPage.jsx";
+import JournalMoodPage from "./features/journal-mood/JournalMoodPage.jsx";
 
 function App() {
   return (
@@ -52,6 +53,7 @@ function App() {
         <SelfOSPage />
         <LifeMapPage />
         <DailyOSPage />
+        <JournalMoodPage />
       </main>
     </div>
   );
