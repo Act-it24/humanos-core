@@ -2,13 +2,15 @@ import React from "react";
 import "./App.css";
 import SelfOSPage from "./features/self-os/SelfOSPage.jsx";
 import LifeMapPage from "./features/life-map/LifeMapPage.jsx";
+import DailyOSPage from "./features/daily-os/DailyOSPage.jsx";
 
 function App() {
   return (
     <div
       style={{
         minHeight: "100vh",
-        background: "radial-gradient(circle at top, #0f172a 0, #020617 55%, #000 100%)",
+        background:
+          "radial-gradient(circle at top, #0f172a 0, #020617 55%, #000 100%)",
         color: "#ffffff",
         display: "flex",
         flexDirection: "column",
@@ -49,6 +51,7 @@ function App() {
         {/* Kernel pillars we start with */}
         <SelfOSPage />
         <LifeMapPage />
+        <DailyOSPage />
       </main>
     </div>
   );
