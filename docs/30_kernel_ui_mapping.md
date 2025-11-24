@@ -88,6 +88,12 @@ web/src/features/
   - Displays profile summary when profile exists (values, traits, energy, flags)
   - Allows re-opening wizard to review/update profile
 - `selfOsModel.js` - Data model, helper functions, and predefined option lists
+- `SelfImageSection` (`SelfImageSection.jsx`) - Hosts Self Image & Assessments cards inside Self OS
+- `BigFiveWizard.jsx` - Full Big Five assessment flow (modal, scoring, summary)
+- `AttachmentWizard.jsx` - Prototype attachment style flow (modal, simple scoring)
+- `EmotionalIntelligenceWizard.jsx` - Prototype EQ flow (modal, simple scoring)
+- `ClinicalScreensWizard.jsx` - Prototype depression screen plus anxiety/burnout placeholders
+- `Modal.jsx` - Shared modal wrapper for assessment wizards
 
 **Current Implementation Details:**
 - Frontend-only MVP (no backend/persistence yet)

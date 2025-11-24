@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Card, Section, EmptyState, Button } from "../../components";
 import SelfOSWizard from "./SelfOSWizard";
+import SelfImageSection from "./SelfImageSection";
 import {
   isProfileEmpty,
   calculatePercents,
@@ -280,6 +281,8 @@ export default function SelfOSPage() {
             </div>
           </Section>
         )}
+
+        <SelfImageSection profile={profile} onUpdateProfile={setProfile} />
 
         <Section title="Actions">
           <Button variant="primary" onClick={() => setShowWizard(true)}>

@@ -51,6 +51,85 @@
  */
 
 /**
+ * @typedef {Object} TraitScore
+ * @property {number} score
+ * @property {"low"|"medium"|"high"} band
+ * @property {string} label
+ */
+
+/**
+ * @typedef {Object} BigFiveAssessment
+ * @property {"bf_v1"} version
+ * @property {string} takenAt
+ * @property {string} [updatedAt]
+ * @property {{
+ *   openness: TraitScore,
+ *   conscientiousness: TraitScore,
+ *   extraversion: TraitScore,
+ *   agreeableness: TraitScore,
+ *   neuroticism: TraitScore
+ * }} traits
+ * @property {Record<string, number>} rawScores
+ * @property {string[]} primaryLabels
+ * @property {string[]} insights
+ * @property {"private"|"shared"|"hidden"} visibility
+ * @property {boolean} isArchived
+ */
+
+/**
+ * @typedef {Object} AttachmentAssessment
+ * @property {"attach_v1"} version
+ * @property {string} takenAt
+ * @property {string} [updatedAt]
+ * @property {{ anxiety: number, avoidance: number }} dimensions
+ * @property {string} styleLabel
+ * @property {string[]} insights
+ * @property {"private"|"shared"|"hidden"} visibility
+ * @property {boolean} isArchived
+ * @property {Record<string, number>} [rawScores]
+ */
+
+/**
+ * @typedef {Object} EmotionalIntelligenceAssessment
+ * @property {"eq_v1"} version
+ * @property {string} takenAt
+ * @property {string} [updatedAt]
+ * @property {{
+ *   selfAwareness: number,
+ *   selfRegulation: number,
+ *   motivation: number,
+ *   empathy: number,
+ *   socialSkills: number
+ * }} dimensions
+ * @property {string[]} insights
+ * @property {"private"|"shared"|"hidden"} visibility
+ * @property {boolean} isArchived
+ * @property {Record<string, number>} [rawScores]
+ */
+
+/**
+ * @typedef {Object} DepressionScreenAssessment
+ * @property {"dep_v1"} version
+ * @property {string} takenAt
+ * @property {string} [updatedAt]
+ * @property {number} severityScore
+ * @property {"none"|"mild"|"moderate"|"severe"} severityBand
+ * @property {string[]} insights
+ * @property {boolean} crisisFlag
+ * @property {"private"|"hidden"} visibility
+ * @property {boolean} isArchived
+ * @property {Record<string, number>} [rawScores]
+ */
+
+/**
+ * @typedef {Object} SelfOsAssessments
+ * @property {BigFiveAssessment=} bigFive
+ * @property {AttachmentAssessment=} attachment
+ * @property {EmotionalIntelligenceAssessment=} emotionalIntelligence
+ * @property {DepressionScreenAssessment=} depressionScreen
+ */
+
+/**
  * @typedef {Object} SelfOsProfile
  * @property {string} createdAt
  * @property {string} updatedAt
@@ -59,6 +138,7 @@
  * @property {EnergyProfile} energy
  * @property {LifeFlag[]} flags
  * @property {string} notes
+ * @property {SelfOsAssessments} assessments
  */
 
 // --- Value options ---
@@ -243,6 +323,7 @@ export function createEmptySelfOsProfile() {
     energy: createEnergyProfile(),
     flags: [],
     notes: "",
+    assessments: createEmptyAssessments(),
   };
 }
 
@@ -391,6 +472,7 @@ export function buildProfileFromWizardData(formData, previousProfile = null) {
     energy,
     flags,
     notes: formData.notes || "",
+    assessments: previousProfile?.assessments || createEmptyAssessments(),
   };
 }
 
@@ -457,5 +539,47 @@ export function profileToWizardState(profile) {
     socialEnergyScore,
     selectedFlagKeys,
     notes: profile.notes || "",
+  };
+}
+
+/**
+ * Build an empty assessments subtree.
+ * @returns {SelfOsAssessments}
+ */
+export function createEmptyAssessments() {
+  return {
+    bigFive: undefined,
+    attachment: undefined,
+    emotionalIntelligence: undefined,
+    depressionScreen: undefined,
+  };
+}
+
+/**
+ * Check if the profile has any stored assessments.
+ * @param {SelfOsProfile} profile
+ * @returns {boolean}
+ */
+export function hasAnyAssessments(profile) {
+  if (!profile || !profile.assessments) return false;
+  const a = profile.assessments;
+  return Boolean(a.bigFive || a.attachment || a.emotionalIntelligence || a.depressionScreen);
+}
+
+/**
+ * Merge partial assessments into a profile and bump updatedAt.
+ * @param {SelfOsProfile} profile
+ * @param {Partial<SelfOsAssessments>} partial
+ * @returns {SelfOsProfile}
+ */
+export function mergeAssessments(profile, partial) {
+  const nextAssessments = {
+    ...(profile?.assessments || createEmptyAssessments()),
+    ...partial,
+  };
+  return {
+    ...(profile || createEmptySelfOsProfile()),
+    assessments: nextAssessments,
+    updatedAt: new Date().toISOString(),
   };
 }
