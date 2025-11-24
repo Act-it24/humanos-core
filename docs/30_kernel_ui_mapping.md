@@ -76,7 +76,7 @@ web/src/features/
 **Current Status:** MVP Implemented (v0.1)
 
 **Implemented Components (MVP):**
-- `SelfOSWizard` (`SelfOSWizard.jsx`) - Multi-step onboarding wizard with 5-6 screens:
+- `SelfOSWizard` (`SelfOSWizard.jsx`) - Multi-step onboarding wizard (now shown inside the shared `Modal` from `SelfOSPage`) with 5-6 screens:
   - Screen 0: Intro
   - Screen 1: Core Values selection and ranking
   - Screen 2: Personality Style (3 dimensions with low/medium/high)
@@ -84,28 +84,30 @@ web/src/features/
   - Screen 4: Life Context & Flags (checkboxes)
   - Screen 5: Summary & Confirmation
 - `SelfOSPage` - Main page component that:
-  - Shows empty state with CTA if no profile exists
-  - Displays profile summary when profile exists (values, traits, energy, flags)
-  - Allows re-opening wizard to review/update profile
+  - Renders a hero/intro card explaining Self OS
+  - Shows a Core Profile card with empty-state CTA when no profile exists, and embeds the profile overview plus a Review/Update CTA when a profile is present
+  - Opens `SelfOSWizard` inside a modal overlay for both creation and edits (hydrates the current profile when present)
+  - Always renders `SelfImageSection` below the core profile card so assessments are accessible from day one
 - `selfOsModel.js` - Data model, helper functions, and predefined option lists
-- `SelfImageSection` (`SelfImageSection.jsx`) - Hosts Self Image & Assessments cards inside Self OS
-- `BigFiveWizard.jsx` - Full Big Five assessment flow (modal, scoring, summary)
-- `AttachmentWizard.jsx` - Prototype attachment style flow (modal, simple scoring)
-- `EmotionalIntelligenceWizard.jsx` - Prototype EQ flow (modal, simple scoring)
-- `ClinicalScreensWizard.jsx` - Prototype depression screen plus anxiety/burnout placeholders
-- `Modal.jsx` - Shared modal wrapper for assessment wizards
+- `SelfImageSection` (`SelfImageSection.jsx`) - Hosts Self Image & Assessments cards (Big Five, attachment, EQ, clinical) under the Self OS tab
+  - `BigFiveWizard.jsx` - Full Big Five assessment flow (modal, scoring, summary)
+  - `AttachmentWizard.jsx` - Prototype attachment style flow (modal, simple scoring)
+  - `EmotionalIntelligenceWizard.jsx` - Prototype EQ flow (modal, simple scoring)
+  - `ClinicalScreensWizard.jsx` - Prototype depression screen plus anxiety/burnout placeholders
+  - `Modal.jsx` - Shared modal wrapper for assessment and core-profile wizards
 
 **Current Implementation Details:**
 - Frontend-only MVP (no backend/persistence yet)
 - Profile stored in React state (useState)
-- Wizard can be opened inline within SelfOSPage
+- Wizard launches from a modal overlay (no auto-open when the tab loads)
+- Page layout: hero intro, Core Profile card (empty state + summary), Self Image & Assessments cards below
 - Profile summary view shows top values, traits, energy rhythms, and active flags
 - Follows spec from `docs/25_self_os_onboarding_spec.md`
 
 **Routes (future):**
-- `/self` - Main Self OS overview
-- `/self/onboarding` - First-time setup wizard (currently inline)
-- `/self/profile` - Profile review and editing (currently inline)
+- `/self` - Main Self OS overview (hero + cards)
+- `/self/onboarding` - First-time setup wizard (launched in-page via modal)
+- `/self/profile` - Profile review and editing (modal)
 
 **Data Dependencies:**
 - Self OS profile (values, traits, flags, energy rhythms)
